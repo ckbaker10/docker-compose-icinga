@@ -101,7 +101,10 @@ services:
   # So, we have to ship some configs with this little init container. Referenced in depends_on of the icinga2 service.
   init-icinga2:
     command: [ "/config/init-icinga2.sh" ]
-    environment: *icinga2-environment
+    environment:
+      # ADDED/CONFIRMED: Explicitly pass the password to the init script
+      ICINGAWEB_ICINGA2_API_USER_PASSWORD: ${ICINGAWEB_ICINGA2_API_USER_PASSWORD:-icingaweb}
+      <<: *icinga2-environment
     image: icinga/icinga2
     logging: *default-logging
     volumes:
