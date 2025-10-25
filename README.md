@@ -29,3 +29,58 @@ The easiest way to upgrade is to start over, removing all the volumes and
 therefore wiping out any configurations you have changed:
 
 `docker-compose down --volumes && docker-compose build --pull && docker-compose -p icinga-playground up -d`
+
+## Backup your settings
+
+`bash backup.sh`
+
+```
+Stopping Docker Compose services for a consistent backup...
+[+] Stopping 7/7
+Container icinga-playground-icingadb-1        Stopped                                                                                     0.7s
+Container icinga-playground-director-1        Stopped                                                                                     1.1s
+Container icinga-playground-icingaweb-1       Stopped                                                                                     2.1s
+Container icinga-playground-icinga2-1         Stopped                                                                                     0.8s
+Container icinga-playground-init-icinga2-1    Stopped                                                                                     0.0s
+Container icinga-playground-icingadb-redis-1  Stopped                                                                                     0.5s
+Container icinga-playground-mysql-1           Stopped                                                                                     1.2s
+Starting backup of volumes: icinga-playground_icinga2, icinga-playground_icingaweb, icinga-playground_mysql
+Creating tar archive...
+./
+./mysql/
+./mysql/multi-master.info
+./mysql/performance_schema/
+./mysql/performance_schema/db.opt
+./mysql/aria_log_control
+./mysql/mysql/
+./mysql/director/
+./mysql/icingaweb/
+./mysql/sys/
+./icinga2/
+./icinga2/etc/
+./icinga2/etc/icinga2/
+./icinga2/var/log/
+./icinga2/var/lib/
+./icingaweb/
+./icingaweb/etc/
+./icingaweb/var/
+./icingaweb/var/lib/
+./icingaweb/var/lib/icingaweb2/
+Backup successful! Archive saved to: /opt/icinga-monitoring-main/backups/icinga-playground_volumes_backup_20251025_215119.tar.gz
+Starting Docker Compose services back up...
+[+] Running 7/7
+Container icinga-playground-mysql-1           Healthy                                                                                     8.1s
+Container icinga-playground-icingadb-redis-1  Healthy                                                                                     7.2s
+Container icinga-playground-init-icinga2-1    Exited                                                                                      1.2s
+Container icinga-playground-icingaweb-1       Started                                                                                     0.7s
+Container icinga-playground-icingadb-1        Started                                                                                     0.5s
+Container icinga-playground-icinga2-1         Healthy                                                                                    10.9s
+Container icinga-playground-director-1        Started                                                                                     0.2s
+```
+
+## Restore backups
+
+```
+bash restore.sh
+Enter the full path to the backup TAR.GZ file (e.g., ./backups/icinga-playground_volumes_backup_YYYYMMDD_HHMMSS.tar.gz): ./backups/icinga-playground_volumes_backup_20251025_215119.tar.gz
+```
