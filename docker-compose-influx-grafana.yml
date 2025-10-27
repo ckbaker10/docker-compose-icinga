@@ -7,6 +7,14 @@ x-logging:
     max-file: "10"
     max-size: "1M"
 
+networks:
+  monitoring_internal:
+    driver: bridge
+
+  monitoring_bridge:
+    name: monitoring_bridge
+    external: ${USE_EXTERNAL_NETWORK:-false}
+
 services:
   influxdb:
     image: influxdb:2.7.12
@@ -79,16 +87,6 @@ services:
     networks:
       - monitoring_internal
       - monitoring_bridge
-
-# Define networks
-networks:
-  monitoring_internal:
-    driver: bridge
-
-  # The key change: Conditional 'external' definition
-  monitoring_bridge:
-    name: monitoring_bridge
-    external: ${USE_EXTERNAL_NETWORK:-false} # If USE_EXTERNAL_NETWORK is set, use it; otherwise, default to 'false'
 
 # Define volumes
 volumes:

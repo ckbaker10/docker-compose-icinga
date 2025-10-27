@@ -70,10 +70,10 @@ networks:
   icinga_internal:
     driver: bridge
 
-  # The key change: Conditional 'external' definition
+  # Shared network for cross-stack communication
   monitoring_bridge:
     name: monitoring_bridge
-    external: ${USE_EXTERNAL_NETWORK:-false} # If USE_EXTERNAL_NETWORK is set, use it; otherwise, default to 'false'
+    external: ${USE_EXTERNAL_NETWORK:-false}
 
 services:
   director:

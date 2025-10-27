@@ -1,15 +1,17 @@
 # Icinga Monitoring Stack with Docker Compose
 
-Complete monitoring solution combining Icinga with time-series databases and visualization tools.
+Complete monitoring solution combining Icinga with time-series databases and visualization tools, featuring intelligent backup/restore capabilities and flexible networking.
 
 ## Architecture
 
-This repository provides two Docker Compose configurations:
+This repository provides a comprehensive dual-stack monitoring solution:
 
 - **`docker-compose.yml`** - Core Icinga stack (Icinga 2, Icinga Web 2, Icinga DB, Director)
-- **`docker-compose-influx-grafana.yml`** - Time-series monitoring stack (InfluxDB, Chronograf, Grafana)
+- **`docker-compose-influx-grafana.yml`** - Time-series monitoring stack (InfluxDB 2.7.12, Chronograf, Grafana)
+- **Intelligent Backup/Restore** - Unified backup system supporting both stacks with legacy compatibility
+- **Flexible Networking** - Run stacks independently or connected via shared bridge network
 
-Both stacks can run independently or together via a shared monitoring bridge network.
+Both stacks can run independently or together, with automatic volume detection and cross-compatible backup/restore functionality.
 
 ## Quick Start
 
@@ -20,40 +22,93 @@ Both stacks can run independently or together via a shared monitoring bridge net
 
 ### Basic Setup
 
-1. **Configure Environment Variables**
+1. **Configure Environment Variables** (Optional)
    ```bash
    cp .env.example .env
    # Edit .env with your desired passwords and settings
+   # If no .env file exists, defaults will be used
    ```
 
-2. **Start the Icinga Stack**
+2. **Choose Your Deployment Strategy**
+
+   **Option A: Independent Stacks (Default)**
    ```bash
-   docker-compose up -d
+   # Start Icinga stack only
+   docker compose up -d
+   
+   # OR start monitoring stack only
+   docker compose -f docker-compose-influx-grafana.yml up -d
+   
+   # OR start both independently (no cross-communication)
+   docker compose up -d
+   docker compose -f docker-compose-influx-grafana.yml up -d
    ```
 
-3. **Start the Monitoring Stack** (optional)
+   **Option B: Connected Stacks (Shared Network)**
    ```bash
-   docker-compose -f docker-compose-influx-grafana.yml up -d
+   # Create shared network and enable cross-stack communication
+   docker network create monitoring_bridge
+   echo "USE_EXTERNAL_NETWORK=true" >> .env
+   
+   # Start both stacks (order doesn't matter)
+   docker compose up -d
+   docker compose -f docker-compose-influx-grafana.yml up -d
+   ```
+
+3. **Verify Deployment**
+   ```bash
+   # Check service health
+   docker compose ps
+   docker compose -f docker-compose-influx-grafana.yml ps
    ```
 
 ## Network Configuration
 
-The stacks support flexible networking through the `USE_EXTERNAL_NETWORK` environment variable:
+The stacks support flexible networking modes through the `USE_EXTERNAL_NETWORK` environment variable:
 
-- **`USE_EXTERNAL_NETWORK=false`** (default) - Creates networks locally
-- **`USE_EXTERNAL_NETWORK=true`** - Uses external shared network
+### Independent Mode (Default)
+- **`USE_EXTERNAL_NETWORK=false`** or unset
+- Each stack creates its own isolated `monitoring_bridge` network
+- Stacks cannot communicate with each other
+- Ideal for: Single-stack deployments, testing, isolated environments
 
-For shared networking between stacks:
+### Connected Mode 
+- **`USE_EXTERNAL_NETWORK=true`**
+- Both stacks share a single external `monitoring_bridge` network
+- Services can communicate across stacks (e.g., Icinga → InfluxDB)
+- Ideal for: Integrated monitoring pipelines, data forwarding
+
+### Network Management Examples
+
+**Switch from Independent to Connected:**
 ```bash
-# Create shared network
+# Stop stacks
+docker compose down
+docker compose -f docker-compose-influx-grafana.yml down
+
+# Enable shared networking
+echo "USE_EXTERNAL_NETWORK=true" >> .env
 docker network create monitoring_bridge
 
-# Set environment variable
-echo "USE_EXTERNAL_NETWORK=true" >> .env
+# Restart in connected mode
+docker compose up -d
+docker compose -f docker-compose-influx-grafana.yml up -d
+```
 
-# Start both stacks
-docker-compose up -d
-docker-compose -f docker-compose-influx-grafana.yml up -d
+**Switch from Connected to Independent:**
+```bash
+# Stop stacks and remove shared network
+docker compose down
+docker compose -f docker-compose-influx-grafana.yml down
+docker network rm monitoring_bridge
+
+# Disable shared networking
+sed -i '/USE_EXTERNAL_NETWORK=true/d' .env  # Linux
+# or edit .env manually to remove the line
+
+# Restart in independent mode
+docker compose up -d
+docker compose -f docker-compose-influx-grafana.yml up -d
 ```
 
 ## Service Access Points
@@ -168,53 +223,253 @@ When no `.env` file is present, the following default credentials are used:
 
 **Security Note**: Change all default passwords in production by copying `.env.example` to `.env` and setting secure values.
 
-## Data Persistence
+## Data Persistence & Backup
 
-All service data persists in named Docker volumes:
-- `icinga2` - Icinga 2 configuration and state
-- `icingaweb` - Icinga Web 2 configuration
-- `mysql` - Database storage
-- `influxdb-storage` - Time-series data
-- `chronograf-storage` - Chronograf dashboards
-- `grafana-storage` - Grafana dashboards and config
+### Volume Structure
+
+All service data persists in named Docker volumes with automatic project-based naming:
+
+**Icinga Stack:**
+- `{project}_icinga2` - Icinga 2 configuration and state  
+- `{project}_icingaweb` - Icinga Web 2 configuration
+- `{project}_mysql` - Database storage (IcingaDB, Director, Users)
+
+**Monitoring Stack:**
+- `{project}_influxdb-storage` - Time-series data and InfluxDB configuration
+- `{project}_chronograf-storage` - Chronograf dashboards and settings
+- `{project}_grafana-storage` - Grafana dashboards, datasources, and configuration
+
+*Note: `{project}` is automatically derived from the directory name (e.g., `icinga-monitoring-main`)*
+
+### Backup System
+
+The repository includes intelligent backup and restore scripts with the following features:
+
+- **Unified Backups**: Single backup file containing both Icinga and monitoring stack data
+- **Selective Restore**: Restore only the stacks you need
+- **Legacy Compatibility**: Automatically detects and migrates old Icinga-only backups
+- **Smart Detection**: Auto-discovers volume naming patterns
+- **Safe Operations**: Confirms destructive actions and provides warnings
+
+#### Creating Backups
+
+```bash
+# Create backup of all existing volumes
+./backup.sh
+
+# Backup includes:
+# - Auto-discovery of existing volumes
+# - Consistent snapshots (services temporarily stopped)
+# - Compressed archive with metadata
+# - Automatic service restart
+```
+
+#### Restoring from Backup
+
+```bash
+# Restore from backup (interactive)
+./restore.sh
+
+# Features:
+# - Backup content analysis and preview
+# - Legacy backup detection and migration
+# - Selective restoration based on available compose files
+# - Volume cleanup and recreation
+# - Intelligent service startup
+```
+
+#### Backup Examples
+
+**Full Stack Backup:**
+```bash
+$ ./backup.sh
+Discovering existing volumes...
+  Found Icinga volume: icinga-monitoring-main_icinga2
+  Found Icinga volume: icinga-monitoring-main_icingaweb  
+  Found Icinga volume: icinga-monitoring-main_mysql
+  Found monitoring volume: icinga-monitoring-main_influxdb-storage
+  Found monitoring volume: icinga-monitoring-main_chronograf-storage
+  Found monitoring volume: icinga-monitoring-main_grafana-storage
+Backup successful!
+  Archive: ./backups/monitoring_stack_backup_20241027_143022.tar.gz
+```
+
+**Legacy Restore (Icinga-only to current structure):**
+```bash
+$ ./restore.sh
+Enter backup path: ./backups/icinga-playground_volumes_backup_20241025_120000.tar.gz
+
+Detected LEGACY backup format (Icinga-only with icinga2/icingaweb/mysql directories)
+LEGACY BACKUP DETECTED:
+  This backup will be restored to current volume naming convention:
+  icinga2 -> icinga-monitoring-main_icinga2
+  icingaweb -> icinga-monitoring-main_icingaweb  
+  mysql -> icinga-monitoring-main_mysql
+```
 
 ## Maintenance Operations
 
-### Clean Restart
+### Backup Operations
 ```bash
-docker-compose down
-docker-compose up -d
+# Create backup before maintenance
+./backup.sh
+
+# Restore from backup if needed
+./restore.sh
 ```
 
-### Full Reset (destroys all data)
+### Service Management
 ```bash
-docker-compose down --volumes
-docker-compose up -d
+# Clean restart (preserves data)
+docker compose down
+docker compose up -d
+
+# Restart specific stack
+docker compose -f docker-compose-influx-grafana.yml restart
+
+# Check service health
+docker compose ps
 ```
 
-### Update Images
+### Data Management
 ```bash
-docker-compose pull
-docker-compose up -d
+# Full reset - Icinga stack only (destroys all Icinga data)
+docker compose down --volumes
+docker compose up -d
+
+# Full reset - Both stacks (destroys all data)
+docker compose down --volumes  
+docker compose -f docker-compose-influx-grafana.yml down --volumes
+docker compose up -d
+docker compose -f docker-compose-influx-grafana.yml up -d
+
+# Selective reset - Remove specific volumes
+docker volume rm icinga-monitoring-main_grafana-storage
+docker compose -f docker-compose-influx-grafana.yml up -d
+```
+
+### Updates and Upgrades
+```bash
+# Update container images
+docker compose pull
+docker compose -f docker-compose-influx-grafana.yml pull
+
+# Restart with new images
+docker compose up -d
+docker compose -f docker-compose-influx-grafana.yml up -d
+
+# Check for any issues after update
+docker compose ps
+docker compose logs
+```
+
+### Environment Changes
+```bash
+# Switch networking modes (see Network Configuration section)
+# Update passwords (requires container restart)
+vim .env
+docker compose down && docker compose up -d
+
+# Add new environment variables
+echo "NEW_SETTING=value" >> .env
+docker compose up -d  # Only affects containers that use the variable
 ```
 
 ## Troubleshooting
 
-### Check Service Health
+### Service Health Checks
 ```bash
-docker-compose ps
+# Check all services status
+docker compose ps
+docker compose -f docker-compose-influx-grafana.yml ps
+
+# View service logs  
+docker compose logs [service_name]
+docker compose logs -f icinga2  # Follow logs in real-time
+
+# Check resource usage
+docker stats
 ```
 
-### View Service Logs
-```bash
-docker-compose logs [service_name]
-```
+### Common Issues
 
-### Database Connection Issues
-Ensure MySQL is healthy before dependent services start. Check logs for initialization errors.
-
-### Network Connectivity
-Verify the monitoring bridge network exists if using external networking:
+#### Network Configuration Problems
 ```bash
+# External network not found error
 docker network ls | grep monitoring_bridge
+# If missing: docker network create monitoring_bridge
+
+# Check network configuration
+docker network inspect monitoring_bridge
+
+# Reset networking (when USE_EXTERNAL_NETWORK=true)
+docker compose down
+docker compose -f docker-compose-influx-grafana.yml down  
+docker network rm monitoring_bridge
+docker network create monitoring_bridge
+docker compose up -d
+docker compose -f docker-compose-influx-grafana.yml up -d
+```
+
+#### Database Connection Issues
+```bash
+# Check MySQL health and logs
+docker compose ps mysql
+docker compose logs mysql
+
+# Verify database initialization
+docker exec -it $(docker compose ps -q mysql) mysql -u root -p
+# Use password from MYSQL_ROOT_PASSWORD (default: rootpassword)
+
+# Reset MySQL data (destroys all data)
+docker compose down
+docker volume rm icinga-monitoring-main_mysql
+docker compose up -d
+```
+
+#### Volume and Backup Issues
+```bash
+# List all project volumes
+docker volume ls | grep $(basename $(pwd))
+
+# Check volume usage and sizes
+docker system df
+
+# Backup/restore troubleshooting
+ls -la backups/  # Check backup files exist
+tar -tzf backups/backup_file.tar.gz | head -20  # Check backup contents
+
+# Manual volume cleanup (dangerous - destroys data)
+docker compose down --volumes
+docker volume prune
+```
+
+#### Permission and Access Issues
+```bash
+# Reset Icinga Web admin password
+# Edit .env file, then restart
+echo "ICINGAWEB_ADMIN_PASSWORD=newpassword" >> .env
+docker compose restart icingaweb
+
+# Check default credentials (see Default Credentials section)
+# Verify service accessibility
+curl -I http://localhost:3065  # Icinga Web 2
+curl -I http://localhost:3075  # Grafana  
+curl -I http://localhost:8086/ping  # InfluxDB
+```
+
+#### Performance and Resource Issues
+```bash
+# Check container resource usage
+docker stats --no-stream
+
+# Check available disk space
+df -h
+docker system df
+
+# Clean up unused resources
+docker system prune -a  # Removes unused containers, networks, images
+
+# Monitor container logs for errors
+docker compose logs --tail=50
 ```
