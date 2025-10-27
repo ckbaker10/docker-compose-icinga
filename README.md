@@ -59,13 +59,13 @@ docker-compose -f docker-compose-influx-grafana.yml up -d
 ## Service Access Points
 
 ### Icinga Stack
-- **Icinga Web 2**: http://localhost:3065 (admin: `icingaadmin`)
-- **Icinga 2 API**: https://localhost:3070 (api user: `icingaweb`)
+- **Icinga Web 2**: http://localhost:3065 (default: `icingaadmin` / `icinga`)
+- **Icinga 2 API**: https://localhost:3070 (default: `icingaweb` / `icingaweb`)
 
 ### Monitoring Stack
-- **InfluxDB**: http://localhost:8086
-- **Chronograf**: http://localhost:8888
-- **Grafana**: http://localhost:3075 (admin configurable via env)
+- **InfluxDB**: http://localhost:8086 (default: `admin` / `adminpassword`)
+- **Chronograf**: http://localhost:8888 (connects to InfluxDB automatically)
+- **Grafana**: http://localhost:3075 (default: `admin` / `grafanapassword`)
 
 ## Environment Configuration
 
@@ -147,6 +147,36 @@ If the container becomes unhealthy after adding configurations:
 - Check container logs for specific error messages
 - Remove problematic files and restart the container
 - Validate configuration syntax before deployment
+
+## Default Credentials
+
+When no `.env` file is present, the following default credentials are used:
+
+### Icinga Stack
+- **Icinga Web 2 Admin**: `icingaadmin` / `icinga`
+- **Icinga 2 API User**: `icingaweb` / `icingaweb`
+- **MySQL Root**: `root` / `rootpassword`
+- **Database Users**: 
+  - IcingaDB: `icingadb` / `icingadb`
+  - IcingaWeb: `icingaweb` / `icingaweb`
+  - Director: `director` / `director`
+
+### Monitoring Stack
+- **InfluxDB**: `admin` / `adminpassword` (token: `mytoken`)
+- **Grafana**: `admin` / `grafanapassword`
+- **Chronograf**: No authentication (connects to InfluxDB with above credentials)
+
+**Security Note**: Change all default passwords in production by copying `.env.example` to `.env` and setting secure values.
+
+## Data Persistence
+
+All service data persists in named Docker volumes:
+- `icinga2` - Icinga 2 configuration and state
+- `icingaweb` - Icinga Web 2 configuration
+- `mysql` - Database storage
+- `influxdb-storage` - Time-series data
+- `chronograf-storage` - Chronograf dashboards
+- `grafana-storage` - Grafana dashboards and config
 
 ## Maintenance Operations
 
