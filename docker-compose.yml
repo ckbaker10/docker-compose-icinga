@@ -42,7 +42,7 @@ x-icinga-web-config:
   icingaweb.config.logging.log: php
   icingaweb.groups.icingaweb2.backend: db
   icingaweb.groups.icingaweb2.resource: icingaweb-mysql
-  icingaweb.passwords.icingaweb2.icingaadmin: icinga
+  icingaweb.passwords.icingaweb2.icingaadmin: ${ICINGAWEB_ADMIN_PASSWORD:-icinga}
   icingaweb.resources.icingaweb-mysql.charset: utf8mb4
   icingaweb.resources.icingaweb-mysql.db: mysql
   icingaweb.resources.icingaweb-mysql.dbname: icingaweb
@@ -67,11 +67,13 @@ x-logging:
     max-size: "1M"
 
 networks:
-  default:
-    name: icinga-playground
-  # ADDED: Definition for the external network
+  icinga_internal:
+    driver: bridge
+
+  # The key change: Conditional 'external' definition
   monitoring_bridge:
-    external: true
+    name: monitoring_bridge
+    external: ${USE_EXTERNAL_NETWORK:-false} # If USE_EXTERNAL_NETWORK is set, use it; otherwise, default to 'false'
 
 services:
   director:
@@ -101,7 +103,7 @@ services:
         condition: service_healthy
     # ADDED: Attach 'director' to the external network so it can be reached or reach others externally
     networks:
-      - default
+      - icinga_internal
       - monitoring_bridge
 
   # The Icinga 2 docker image does not support configuration via env vars at the moment.
@@ -126,7 +128,7 @@ services:
       mysql:
         condition: service_healthy
     networks:
-      - default # 'init-icinga2' generally only needs to be on the default network
+      - icinga_internal # 'init-icinga2' generally only needs to be on the internal network
 
   icinga2:
     command: [ "sh", "-c", "sleep 5 ; icinga2 daemon" ]
@@ -139,6 +141,7 @@ services:
     volumes:
       - icinga2:/data
       - ./icinga2.conf.d:/custom_data/custom.conf.d
+      - ./global-zone/:/etc/icinga2/zones.d/global-templates
     # UNIFIED: Use condition-based dependency for init completion and redis readiness
     depends_on:
       init-icinga2:
@@ -154,7 +157,7 @@ services:
       start_period: 90s
     # ADDED: Attach 'icinga2' to the external network
     networks:
-      - default
+      - icinga_internal
       - monitoring_bridge
 
   icingadb:
@@ -176,7 +179,7 @@ services:
       icingadb-redis:
         condition: service_healthy
     networks:
-      - default # 'icingadb' generally only needs to be on the default network
+      - icinga_internal # 'icingadb' generally only needs to be on the internal network
 
   icingadb-redis:
     image: redis
@@ -188,7 +191,7 @@ services:
       timeout: 3s
       retries: 5
     networks:
-      - default # 'icingadb-redis' generally only needs to be on the default network
+      - icinga_internal # 'icingadb-redis' generally only needs to be on the internal network
 
   icingaweb:
     environment:
@@ -209,7 +212,7 @@ services:
         condition: service_healthy
     # ADDED: Attach 'icingaweb' to the external network so it can be reached or reach others externally
     networks:
-      - default
+      - icinga_internal
       - monitoring_bridge
 
   mysql:
@@ -218,7 +221,7 @@ services:
       - --sql-mode=TRADITIONAL,ANSI_QUOTES # FIXED: Removed quotes around the value
       - --default-authentication-plugin=mysql_native_password
     environment:
-      MYSQL_RANDOM_ROOT_PASSWORD: 1
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
       ICINGADB_MYSQL_PASSWORD: ${ICINGADB_MYSQL_PASSWORD:-icingadb}
       ICINGAWEB_MYSQL_PASSWORD: ${ICINGAWEB_MYSQL_PASSWORD:-icingaweb}
       ICINGA_DIRECTOR_MYSQL_PASSWORD: ${ICINGA_DIRECTOR_MYSQL_PASSWORD:-director}
@@ -228,13 +231,13 @@ services:
       - mysql:/var/lib/mysql
       - ./env/mysql/:/docker-entrypoint-initdb.d/
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$MYSQL_RANDOM_ROOT_PASSWORD"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpassword}"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 20s
     networks:
-      - default # 'mysql' generally only needs to be on the default network
+      - icinga_internal # 'mysql' generally only needs to be on the internal network
 
 volumes:
   icinga2:
