@@ -1,0 +1,23 @@
+# Inspiration from: https://github.com/jkehres/docker-compose-influxdb-grafana/tree/master
+
+services:
+  influxdb:
+    image: influxdb:2.7
+    container_name: tsdb_influxdb
+    networks:
+      - monitoring_bridge # Attach to the shared external network
+    # ... other configurations (ports, volumes, environment)
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: viz_grafana
+    ports:
+      - "127.0.0.1:3075:3000"
+    networks:
+      - monitoring_bridge # Attach to the shared external network
+    # ... other configurations
+
+# Define the external network
+networks:
+  monitoring_bridge:
+    external: true

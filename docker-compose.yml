@@ -69,6 +69,9 @@ x-logging:
 networks:
   default:
     name: icinga-playground
+  # ADDED: Definition for the external network
+  monitoring_bridge:
+    external: true
 
 services:
   director:
@@ -96,6 +99,10 @@ services:
         condition: service_healthy
       icinga2:
         condition: service_healthy
+    # ADDED: Attach 'director' to the external network so it can be reached or reach others externally
+    networks:
+      - default
+      - monitoring_bridge
 
   # The Icinga 2 docker image does not support configuration via env vars at the moment.
   # So, we have to ship some configs with this little init container. Referenced in depends_on of the icinga2 service.
@@ -118,6 +125,8 @@ services:
         condition: service_healthy
       mysql:
         condition: service_healthy
+    networks:
+      - default # 'init-icinga2' generally only needs to be on the default network
 
   icinga2:
     command: [ "sh", "-c", "sleep 5 ; icinga2 daemon" ]
@@ -143,6 +152,10 @@ services:
       timeout: 5s
       retries: 5
       start_period: 90s
+    # ADDED: Attach 'icinga2' to the external network
+    networks:
+      - default
+      - monitoring_bridge
 
   icingadb:
     environment:
@@ -162,6 +175,8 @@ services:
         condition: service_healthy
       icingadb-redis:
         condition: service_healthy
+    networks:
+      - default # 'icingadb' generally only needs to be on the default network
 
   icingadb-redis:
     image: redis
@@ -172,6 +187,8 @@ services:
       interval: 1s
       timeout: 3s
       retries: 5
+    networks:
+      - default # 'icingadb-redis' generally only needs to be on the default network
 
   icingaweb:
     environment:
@@ -190,6 +207,10 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+    # ADDED: Attach 'icingaweb' to the external network so it can be reached or reach others externally
+    networks:
+      - default
+      - monitoring_bridge
 
   mysql:
     image: mariadb:10.7
@@ -212,6 +233,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+    networks:
+      - default # 'mysql' generally only needs to be on the default network
 
 volumes:
   icinga2:
