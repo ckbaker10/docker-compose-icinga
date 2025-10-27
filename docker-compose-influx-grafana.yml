@@ -1,23 +1,94 @@
 # Inspiration from: https://github.com/jkehres/docker-compose-influxdb-grafana/tree/master
 
+x-logging:
+  &default-logging
+  driver: "json-file"
+  options:
+    max-file: "10"
+    max-size: "1M"
+
 services:
   influxdb:
     image: influxdb:2.7
     container_name: tsdb_influxdb
+    ports:
+      - "127.0.0.1:8086:8086"
+    volumes:
+      - influxdb-storage:/var/lib/influxdb2
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USERNAME:-admin}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD:-adminpassword}
+      - DOCKER_INFLUXDB_INIT_ORG=myorg
+      - DOCKER_INFLUXDB_INIT_BUCKET=mybucket
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_ADMIN_TOKEN:-mytoken}
+    logging: *default-logging
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
-      - monitoring_bridge # Attach to the shared external network
-    # ... other configurations (ports, volumes, environment)
+      - default
+      - monitoring_bridge
+
+  chronograf:
+    image: chronograf:latest
+    container_name: viz_chronograf
+    ports:
+      - "127.0.0.1:8888:8888"
+    volumes:
+      - chronograf-storage:/var/lib/chronograf
+    environment:
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_USERNAME=${INFLUXDB_USERNAME:-admin}
+      - INFLUXDB_PASSWORD=${INFLUXDB_PASSWORD:-adminpassword}
+    logging: *default-logging
+    restart: unless-stopped
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    networks:
+      - default
+      - monitoring_bridge
 
   grafana:
     image: grafana/grafana:latest
     container_name: viz_grafana
     ports:
       - "127.0.0.1:3075:3000"
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - ./grafana-provisioning/:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USERNAME:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-grafanapassword}
+    logging: *default-logging
+    restart: unless-stopped
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
-      - monitoring_bridge # Attach to the shared external network
-    # ... other configurations
+      - default
+      - monitoring_bridge
 
-# Define the external network
+# Define networks
 networks:
+  default:
+    name: monitoring-stack
   monitoring_bridge:
     external: true
+
+# Define volumes
+volumes:
+  influxdb-storage:
+  chronograf-storage:
+  grafana-storage:
