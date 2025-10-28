@@ -1,4 +1,4 @@
-# Icinga Monitoring Stack with Docker Compose
+# Icinga Graphing Stack with Docker Compose
 
 Complete monitoring solution combining Icinga with time-series databases and visualization tools, featuring intelligent backup/restore capabilities and flexible networking.
 
@@ -7,7 +7,7 @@ Complete monitoring solution combining Icinga with time-series databases and vis
 This repository provides a comprehensive dual-stack monitoring solution:
 
 - **`docker-compose.yml`** - Core Icinga stack (Icinga 2, Icinga Web 2, Icinga DB, Director)
-- **`docker-compose-influx-grafana.yml`** - Time-series monitoring stack (InfluxDB 2.7.12, Chronograf, Grafana)
+- **`docker-compose-influx-grafana.yml`** - Time-series Graphing Stack (InfluxDB 2.7.12, Chronograf, Grafana)
 - **Intelligent Backup/Restore** - Unified backup system supporting both stacks with legacy compatibility
 - **Flexible Networking** - Run stacks independently or connected via shared bridge network
 
@@ -36,7 +36,7 @@ Both stacks can run independently or together, with automatic volume detection a
    # Start Icinga stack only
    docker compose up -d
    
-   # OR start monitoring stack only
+   # OR start Graphing Stack only
    docker compose -f docker-compose-influx-grafana.yml up -d
    
    # OR start both independently (no cross-communication)
@@ -117,7 +117,7 @@ docker compose -f docker-compose-influx-grafana.yml up -d
 - **Icinga Web 2**: http://localhost:3065 (default: `icingaadmin` / `icinga`)
 - **Icinga 2 API**: https://localhost:3070 (default: `icingaweb` / `icingaweb`)
 
-### Monitoring Stack
+### Graphing Stack
 - **InfluxDB**: http://localhost:8086 (default: `admin` / `adminpassword`)
 - **Chronograf**: http://localhost:8888 (connects to InfluxDB automatically)
 - **Grafana**: http://localhost:3075 (default: `admin` / `grafanapassword`)
@@ -216,7 +216,7 @@ When no `.env` file is present, the following default credentials are used:
   - IcingaWeb: `icingaweb` / `icingaweb`
   - Director: `director` / `director`
 
-### Monitoring Stack
+### Graphing Stack
 - **InfluxDB**: `admin` / `adminpassword` (token: `mytoken`)
 - **Grafana**: `admin` / `grafanapassword`
 - **Chronograf**: No authentication (connects to InfluxDB with above credentials)
@@ -234,7 +234,7 @@ All service data persists in named Docker volumes with automatic project-based n
 - `{project}_icingaweb` - Icinga Web 2 configuration
 - `{project}_mysql` - Database storage (IcingaDB, Director, Users)
 
-**Monitoring Stack:**
+**Graphing Stack:**
 - `{project}_influxdb-storage` - Time-series data and InfluxDB configuration
 - `{project}_chronograf-storage` - Chronograf dashboards and settings
 - `{project}_grafana-storage` - Grafana dashboards, datasources, and configuration
@@ -245,7 +245,7 @@ All service data persists in named Docker volumes with automatic project-based n
 
 The repository includes intelligent backup and restore scripts with the following features:
 
-- **Unified Backups**: Single backup file containing both Icinga and monitoring stack data
+- **Unified Backups**: Single backup file containing both Icinga and Graphing Stack data
 - **Selective Restore**: Restore only the stacks you need
 - **Legacy Compatibility**: Automatically detects and migrates old Icinga-only backups
 - **Smart Detection**: Auto-discovers volume naming patterns
