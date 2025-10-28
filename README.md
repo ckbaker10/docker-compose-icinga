@@ -1,10 +1,6 @@
-# Icinga Graphing Stack with Docker Compose
-
-Complete monitoring solution combining Icinga with time-series databases and visualization tools, featuring intelligent backup/restore capabilities and flexible networking.
+# Icinga InfluxDB Grafana Stack with Docker Compose
 
 ## Architecture
-
-This repository provides a comprehensive dual-stack monitoring solution:
 
 - **`docker-compose.yml`** - Core Icinga stack (Icinga 2, Icinga Web 2, Icinga DB, Director)
 - **`docker-compose-influx-grafana.yml`** - Time-series Graphing Stack (InfluxDB 2.7.12, Chronograf, Grafana)
@@ -76,7 +72,7 @@ The stacks support flexible networking modes through the `USE_EXTERNAL_NETWORK` 
 - **`USE_EXTERNAL_NETWORK=true`**
 - Both stacks share a single external `monitoring_bridge` network
 - Services can communicate across stacks (e.g., Icinga → InfluxDB)
-- Ideal for: Integrated monitoring pipelines, data forwarding
+- Ideal for: Integrated graphing pipelines, data forwarding
 
 ### Network Management Examples
 
@@ -287,9 +283,9 @@ Discovering existing volumes...
   Found Icinga volume: icinga-monitoring-main_icinga2
   Found Icinga volume: icinga-monitoring-main_icingaweb  
   Found Icinga volume: icinga-monitoring-main_mysql
-  Found monitoring volume: icinga-monitoring-main_influxdb-storage
-  Found monitoring volume: icinga-monitoring-main_chronograf-storage
-  Found monitoring volume: icinga-monitoring-main_grafana-storage
+  Found graphing volume: icinga-monitoring-main_influxdb-storage
+  Found graphing volume: icinga-monitoring-main_chronograf-storage
+  Found graphing volume: icinga-monitoring-main_grafana-storage
 Backup successful!
   Archive: ./backups/monitoring_stack_backup_20241027_143022.tar.gz
 ```
