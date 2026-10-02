@@ -219,6 +219,17 @@ When no `.env` file is present, the following default credentials are used:
 
 **Security Note**: Change all default passwords in production by copying `.env.example` to `.env` and setting secure values.
 
+**Changing passwords later**: The database users and the Icinga 2 API user are created only on the first start, when the volumes are still empty. Changing `MYSQL_ROOT_PASSWORD`, `ICINGADB_MYSQL_PASSWORD`, `ICINGAWEB_MYSQL_PASSWORD`, `ICINGA_DIRECTOR_MYSQL_PASSWORD` or `ICINGAWEB_ICINGA2_API_USER_PASSWORD` in `.env` afterwards does not update the existing accounts. Change them in the running services as well:
+
+```bash
+# Database user, e.g. icingaweb (repeat for icingadb, director)
+docker compose exec mysql mariadb -u root -p -e "ALTER USER 'icingaweb'@'%' IDENTIFIED BY 'NEW_PASSWORD';"
+
+# Icinga 2 API user: remove the generated file, re-run the init container, restart icinga2
+docker compose run --rm --no-deps icinga2 rm /data/etc/icinga2/conf.d/icingaweb-api-user.conf
+docker compose up -d --force-recreate init-icinga2 icinga2 icingaweb director
+```
+
 ## Data Persistence & Backup
 
 ### Volume Structure
