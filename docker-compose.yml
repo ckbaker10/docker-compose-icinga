@@ -91,7 +91,7 @@ services:
         icingacli director daemon run
     entrypoint: []
     logging: *default-logging
-    image: icinga/icingaweb2
+    image: icinga/icingaweb2:2.14
     restart: unless-stopped
     volumes:
       - icingaweb:/data
@@ -115,7 +115,7 @@ services:
     environment:
       ICINGAWEB_ICINGA2_API_USER_PASSWORD: ${ICINGAWEB_ICINGA2_API_USER_PASSWORD:-icingaweb}
       <<: *icinga2-environment
-    image: icinga/icinga2
+    image: icinga/icinga2:2.16
     logging: *default-logging
     volumes:
       - icinga2:/data
@@ -128,7 +128,7 @@ services:
   icinga2:
     command: [ "icinga2", "daemon" ]
     environment: *icinga2-environment
-    image: icinga/icinga2
+    image: icinga/icinga2:2.16
     logging: *default-logging
     ports:
       - "127.0.0.1:3070:5665"
@@ -162,7 +162,7 @@ services:
       ICINGADB_DATABASE_PASSWORD: ${ICINGADB_MYSQL_PASSWORD:-icingadb}
       ICINGADB_REDIS_HOST: icingadb-redis
       ICINGADB_REDIS_PORT: 6379
-    image: icinga/icingadb
+    image: icinga/icingadb:1.5
     logging: *default-logging
     restart: unless-stopped
     depends_on:
@@ -174,7 +174,7 @@ services:
       - icinga_internal
 
   icingadb-redis:
-    image: redis
+    image: redis:8.10
     logging: *default-logging
     restart: unless-stopped
     healthcheck:
@@ -190,7 +190,7 @@ services:
       icingaweb.enabledModules: director, icingadb, incubator
       <<: [*icinga-db-web-config, *icinga-director-config, *icinga-web-config]
     logging: *default-logging
-    image: icinga/icingaweb2
+    image: icinga/icingaweb2:2.14
     ports:
       - "127.0.0.1:3065:8080"
     restart: unless-stopped

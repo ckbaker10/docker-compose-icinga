@@ -43,7 +43,7 @@ services:
       - monitoring_bridge
 
   chronograf:
-    image: chronograf:latest
+    image: chronograf:1.11
     container_name: viz_chronograf
     ports:
       - "127.0.0.1:8888:8888"
@@ -63,7 +63,7 @@ services:
       - monitoring_bridge
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.2
     container_name: viz_grafana
     ports:
       - "127.0.0.1:3075:3000"
