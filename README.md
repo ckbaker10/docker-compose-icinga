@@ -253,65 +253,43 @@ All service data persists in named Docker volumes with automatic project-based n
 The repository includes intelligent backup and restore scripts with the following features:
 
 - **Unified Backups**: Single backup file containing both Icinga and Graphing Stack data
-- **Selective Restore**: Restore only the stacks you need
-- **Legacy Compatibility**: Automatically detects and migrates old Icinga-only backups
-- **Smart Detection**: Auto-discovers volume naming patterns
-- **Safe Operations**: Confirms destructive actions and provides warnings
+- **Selective Restore**: Only the stacks contained in the backup are stopped and restored
+- **Legacy Compatibility**: Older Icinga-only backups and volumes named `icinga-playground_*` or without prefix are recognised
+- **Project-aware**: Volume names follow the Compose project name (directory name or `COMPOSE_PROJECT_NAME`)
+- **Safe Operations**: Nothing is stopped or changed before the restore is confirmed; any error aborts with a non-zero exit code
+
+Both scripts can be called from any directory; they work relative to their own location.
 
 #### Creating Backups
 
 ```bash
-# Create backup of all existing volumes
 ./backup.sh
-
-# Backup includes:
-# - Auto-discovery of existing volumes
-# - Consistent snapshots (services temporarily stopped)
-# - Compressed archive with metadata
-# - Automatic service restart
 ```
+
+Running services are stopped for a consistent copy and exactly those services are started again afterwards, also when the backup fails. The archive is written to `backups/` together with a metadata file; an incomplete archive is removed.
 
 #### Restoring from Backup
 
 ```bash
-# Restore from backup (interactive)
-./restore.sh
-
-# Features:
-# - Backup content analysis and preview
-# - Legacy backup detection and migration
-# - Selective restoration based on available compose files
-# - Volume cleanup and recreation
-# - Intelligent service startup
+./restore.sh backups/monitoring_stack_backup_20241027_143022.tar.gz
+# or without argument to be asked for the path
 ```
 
-#### Backup Examples
+The script shows which volume each backup entry is restored to and asks for confirmation. It then stops the affected stacks, empties the target volumes (missing volumes are created), extracts the archive and starts the stacks again. If extraction fails, the stacks stay stopped.
 
-**Full Stack Backup:**
+#### Backup Example
+
 ```bash
 $ ./backup.sh
-Discovering existing volumes...
-  Found Icinga volume: icinga-monitoring-main_icinga2
-  Found Icinga volume: icinga-monitoring-main_icingaweb  
-  Found Icinga volume: icinga-monitoring-main_mysql
-  Found graphing volume: icinga-monitoring-main_influxdb-storage
-  Found graphing volume: icinga-monitoring-main_chronograf-storage
-  Found graphing volume: icinga-monitoring-main_grafana-storage
+Discovering existing volumes (project: icinga-monitoring-main)...
+  Found volume: icinga-monitoring-main_icinga2
+  Found volume: icinga-monitoring-main_icingaweb
+  Found volume: icinga-monitoring-main_mysql
+  Found volume: icinga-monitoring-main_grafana-storage
+Stopping services from docker-compose.yml for a consistent backup...
+Creating archive monitoring_stack_backup_20241027_143022.tar.gz...
 Backup successful!
-  Archive: ./backups/monitoring_stack_backup_20241027_143022.tar.gz
-```
-
-**Legacy Restore (Icinga-only to current structure):**
-```bash
-$ ./restore.sh
-Enter backup path: ./backups/icinga-playground_volumes_backup_20241025_120000.tar.gz
-
-Detected LEGACY backup format (Icinga-only with icinga2/icingaweb/mysql directories)
-LEGACY BACKUP DETECTED:
-  This backup will be restored to current volume naming convention:
-  icinga2 -> icinga-monitoring-main_icinga2
-  icingaweb -> icinga-monitoring-main_icingaweb  
-  mysql -> icinga-monitoring-main_mysql
+  Archive: /opt/icinga-monitoring-main/backups/monitoring_stack_backup_20241027_143022.tar.gz
 ```
 
 ## Maintenance Operations
