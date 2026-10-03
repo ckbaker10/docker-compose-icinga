@@ -9,6 +9,34 @@
 
 Both stacks can run independently or together, with automatic volume detection and cross-compatible backup/restore functionality.
 
+### Images
+
+Pinned to minor versions; `docker compose pull` picks up patch releases only.
+
+| Service | Image |
+|---|---|
+| icinga2, init-icinga2 | `icinga/icinga2:2.16` |
+| icingadb | `icinga/icingadb:1.5` |
+| icingadb-redis | `redis:8.10` |
+| icingaweb, director | `icinga/icingaweb2:2.14` |
+| mysql | `mariadb:10.7` |
+| influxdb | `influxdb:2.7.12` |
+| chronograf | `chronograf:1.11` |
+| grafana | `grafana/grafana:13.2` |
+
+### Monitoring plugins
+
+The check commands for the agents come from two companion repositories; put
+their command files into `global-zone/` and run the Director kickstart (see
+[Global Zone Configuration](#global-zone-configuration)):
+
+| Repository | File | Commands |
+|---|---|---|
+| [nagios-plugins-general](https://github.com/ckbaker10/nagios-plugins-general) | `icinga-commands/commands-nagios-plugins.conf` | `git_check_*` for the standard nagios-plugins (same build on all hosts) |
+| [nagios-plugins-custom](https://github.com/ckbaker10/nagios-plugins-custom) | `icinga-custom-commands/commands-custom.conf` | own plugins (`check_p110`, `check_lte_router`, …) and the SMS notification command |
+
+Both repositories install the plugins on the agents with Ansible.
+
 ## Quick Start
 
 ### Prerequisites
@@ -108,6 +136,10 @@ docker compose -f docker-compose-influx-grafana.yml up -d
 ```
 
 ## Service Access Points
+
+All ports are published on `127.0.0.1` only. To let remote agents connect
+to the API, publish port 5665 on a reachable address (e.g. a VPN address)
+in `docker-compose.yml` or put a proxy/tunnel in front.
 
 ### Icinga Stack
 - **Icinga Web 2**: http://localhost:3065 (default: `icingaadmin` / `icinga`)
