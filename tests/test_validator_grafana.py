@@ -16,7 +16,7 @@ class DashboardContractTest(unittest.TestCase):
             with self.subTest(period=period):
                 view = GRAFANA.dashboard(period)
                 self.assertEqual(view["uid"], "iev-stats-" + period)
-                self.assertEqual(len(view["panels"]), 3)
+                self.assertEqual(len(view["panels"]), 4)
                 self.assertEqual(view["timezone"], "utc")
                 queries = [panel["targets"][0]["query"] for panel in view["panels"]]
                 self.assertTrue(all(f'from(bucket: "{bucket}")' in query for query in queries))
@@ -24,6 +24,7 @@ class DashboardContractTest(unittest.TestCase):
                 self.assertIn('r._field == "total"', queries[0])
                 self.assertIn('r._field == "mode_bounce"', queries[1])
                 self.assertIn('r._field == "status_auffaellig"', queries[2])
+                self.assertIn('r._field == "complete"', queries[3])
 
 
 if __name__ == "__main__":

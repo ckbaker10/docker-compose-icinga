@@ -26,7 +26,7 @@ im Repository `incoming-email-validator-go`.
    höchstens 256 Buckets nachgeholt.
 5. Grafana bezieht die drei exakten Buckets mit einem eigenen Lesetoken.
    `scripts/provision-validator-grafana.py` aktualisiert die Datenquelle und
-   drei Dashboards mit Gesamt-, Modus- und Statusfeldern. Die Icinga-Services
+   drei Dashboards mit Gesamt-, Modus-, Status- und Datenqualitätsfeldern. Die Icinga-Services
    verlinken die passenden UIDs.
 
 Die drei exakten Influx-Buckets haben feste Retention von 90, 732 und 1830

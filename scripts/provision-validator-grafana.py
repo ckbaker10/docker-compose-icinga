@@ -92,6 +92,7 @@ def dashboard(period):
                   ("check", "bounce", "reply", "other")), 8),
             panel(period, bucket, 3, "Nach Ergebnis", tuple("status_" + status for status in
                   ("ohne_festgestellte_probleme", "auffaellig", "unvollstaendig", "other")), 16),
+            panel(period, bucket, 4, "Datenstatus (1 = vollständig)", ("known", "complete"), 24),
         ],
     }
 
