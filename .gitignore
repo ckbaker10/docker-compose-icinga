@@ -3,3 +3,6 @@
 !.env.example
 # Except those related to Git (and GitHub)
 !.git*
+work/
+__pycache__/
+*.pyc

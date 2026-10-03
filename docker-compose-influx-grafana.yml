@@ -67,12 +67,14 @@ services:
     container_name: viz_grafana
     ports:
       - "127.0.0.1:3075:3000"
+      - "10.200.200.1:3075:3000"
     volumes:
       - grafana-storage:/var/lib/grafana
       - ./grafana-provisioning/:/etc/grafana/provisioning
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USERNAME:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-grafanapassword}
+      - GF_SERVER_ROOT_URL=http://10.200.200.1:3075/
     logging: *default-logging
     restart: unless-stopped
     depends_on:
