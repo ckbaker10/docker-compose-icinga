@@ -403,6 +403,30 @@ From 11.0 on, the image only ships `mariadb`/`mariadb-admin`, no
 `mysql`/`mysqladmin`; the health check and `env/mysql/init-mysql.sh` already
 use the new names.
 
+### End-to-End Acceptance Test
+
+`tests/e2e/run.sh` starts both stacks from the current working tree with
+Podman in isolated projects (`icinga-e2e`, `icinga-e2e-graph`, ports
+13060-13064, own networks) and checks:
+
+1. MariaDB and Redis healthy, Icinga 2 healthy and its API answering
+2. Icinga DB writes hosts to MariaDB and keeps its heartbeat current,
+   the Director schema is migrated
+3. Icinga Web login with `ICINGAWEB_ADMIN_PASSWORD` shows the Icinga DB host
+   list, a wrong password is rejected
+4. InfluxDB write and query with `INFLUXDB_ADMIN_TOKEN`, Grafana and
+   Chronograf answer
+
+```bash
+tests/e2e/run.sh                    # passwords from .env.example
+E2E_KEEP=1 tests/e2e/run.sh         # keep the stacks for debugging
+```
+
+Requirements: `podman`, `podman-compose`, `git` and `curl`. A running
+installation is not touched; all containers, networks and volumes of the test
+are removed afterwards. Further options are listed in the script header. Run
+it after image updates such as the MariaDB upgrade above.
+
 ### Environment Changes
 ```bash
 # Switch networking modes (see Network Configuration section)
