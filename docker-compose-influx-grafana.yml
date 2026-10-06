@@ -17,7 +17,7 @@ networks:
 
 services:
   influxdb:
-    image: influxdb:2.7.12
+    image: influxdb:2.9
     container_name: tsdb_influxdb
     ports:
       - "127.0.0.1:8086:8086"

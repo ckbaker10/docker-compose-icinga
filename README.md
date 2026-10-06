@@ -3,7 +3,7 @@
 ## Architecture
 
 - **`docker-compose.yml`** - Core Icinga stack (Icinga 2, Icinga Web 2, Icinga DB, Director)
-- **`docker-compose-influx-grafana.yml`** - Time-series Graphing Stack (InfluxDB 2.7.12, Chronograf, Grafana)
+- **`docker-compose-influx-grafana.yml`** - Time-series Graphing Stack (InfluxDB 2.9, Chronograf, Grafana)
 - **Intelligent Backup/Restore** - Unified backup system supporting both stacks with legacy compatibility
 - **Flexible Networking** - Run stacks independently or connected via shared bridge network
 
@@ -20,7 +20,7 @@ Pinned to minor versions; `docker compose pull` picks up patch releases only.
 | icingadb-redis | `redis:8.10` |
 | icingaweb, director | `icinga/icingaweb2:2.14` |
 | mysql | `mariadb:10.7` |
-| influxdb | `influxdb:2.7.12` |
+| influxdb | `influxdb:2.9` |
 | chronograf | `chronograf:1.11` |
 | grafana | `grafana/grafana:13.2` |
 
@@ -380,6 +380,29 @@ docker compose ps
 docker compose logs
 ```
 
+**InfluxDB 2.7 → 2.9:** take a backup first (`./backup.sh`). On the first
+start, 2.9 migrates the metadata store (it keeps
+`influxd.bolt.pre-v2.9.x-upgrade.backup` in the volume) and stores API tokens
+only as hashes from then on. Existing tokens such as `INFLUXDB_ADMIN_TOKEN`
+keep working, but their plaintext can no longer be read back from InfluxDB,
+and going back below 2.8 deletes all tokens. To roll back, restore the
+backup taken before the upgrade.
+
+**MariaDB:** stays on `mariadb:10.7` (end of life since 2023-02) until a
+major-version upgrade has been tested with a copy of the real database. With
+a freshly created test database, 10.7 → 11.8 (LTS) worked as follows:
+
+1. `./backup.sh`
+2. In `docker-compose.yml` set `image: mariadb:11.8` and add
+   `MARIADB_AUTO_UPGRADE: "1"` to the `mysql` environment.
+3. `docker compose up -d` – the entrypoint saves the system tables to
+   `system_mysql_backup_*.sql.zst` in the volume and runs `mariadb-upgrade`;
+   Icinga DB, Icinga Web and the Director keep their data.
+
+From 11.0 on, the image only ships `mariadb`/`mariadb-admin`, no
+`mysql`/`mysqladmin`; the health check and `env/mysql/init-mysql.sh` already
+use the new names.
+
 ### Environment Changes
 ```bash
 # Switch networking modes (see Network Configuration section)
@@ -435,7 +458,7 @@ docker compose ps mysql
 docker compose logs mysql
 
 # Verify database initialization
-docker exec -it $(docker compose ps -q mysql) mysql -u root -p
+docker exec -it $(docker compose ps -q mysql) mariadb -u root -p
 # Use password from MYSQL_ROOT_PASSWORD (default: rootpassword)
 
 # Reset MySQL data (destroys all data)

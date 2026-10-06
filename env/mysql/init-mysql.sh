@@ -10,7 +10,7 @@ create_database_and_user() {
     # Escape backslashes and single quotes for the SQL string literal.
     PASSWORD=$(printf '%s' "$3" | sed -e 's/\\/\\\\/g' -e "s/'/\\\\'/g")
 
-    mysql --user=root --password="$MYSQL_ROOT_PASSWORD" <<EOS
+    mariadb --user=root --password="$MYSQL_ROOT_PASSWORD" <<EOS
 CREATE DATABASE IF NOT EXISTS \`${DB}\`;
 CREATE USER IF NOT EXISTS '${USER}'@'%' IDENTIFIED BY '${PASSWORD}';
 GRANT ALL ON \`${DB}\`.* TO '${USER}'@'%';
