@@ -69,6 +69,29 @@ unvollständige Vorgeschichte, `complete=0` den laufenden Bucket.
 
 ## Kontrolle und Wiederherstellung
 
+Die Unit startet die installierte Kopie
+`/opt/icinga-monitoring-main/validator-stats/export.py`, nicht direkt die
+Quelldatei im Checkout. Für ein Update auf dem bestehenden Master aus dem
+Repository-Verzeichnis (als root; private Konfiguration und Token erhalten):
+
+```sh
+systemctl stop validator-bucket-export.timer validator-bucket-export.service
+install -o root -g root -m 0700 scripts/validator-bucket-export.py /opt/icinga-monitoring-main/validator-stats/export.py
+install -o root -g root -m 0644 systemd/validator-bucket-export.service systemd/validator-bucket-export.timer /etc/systemd/system/
+systemctl daemon-reload
+systemctl start validator-bucket-export.service
+systemctl show validator-bucket-export.service -p Result -p ExecMainStatus
+# Nur bei Result=success und ExecMainStatus=0 den Timer wieder aktivieren:
+systemctl enable --now validator-bucket-export.timer
+```
+
+Vor dem Update die bisherige `export.py` und beide Unit-Dateien zusammen mit
+der privaten Konfiguration sichern. Bei einem Fehler den Timer gestoppt
+lassen, diese Dateien zurückspielen, `systemctl daemon-reload` ausführen und
+den einmaligen Export erneut prüfen, bevor der Timer startet. Dieser Ablauf
+setzt die oben beschriebene vorhandene Host-, Schlüssel-, Bucket- und
+Token-Konfiguration voraus; er richtet keine neue Validator-Installation ein.
+
 ```sh
 docker exec icinga-monitoring-main-icinga2-1 icinga2 daemon -C
 ssh ratemymail.eu icinga2 daemon -C

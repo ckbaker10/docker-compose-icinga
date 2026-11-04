@@ -6,7 +6,7 @@ MONITORING_COMPOSE=docker-compose-influx-grafana.yml
 ICINGA_VOLUMES=(icinga2 icingaweb mysql)
 MONITORING_VOLUMES=(influxdb-storage chronograf-storage grafana-storage)
 # shellcheck disable=SC2034 # used by backup.sh and restore.sh
-HELPER_IMAGE=alpine:3
+HELPER_IMAGE=docker.io/library/alpine:3.24.3
 
 # Compose project name as resolved by Docker Compose (honours COMPOSE_PROJECT_NAME and .env).
 project_name() {

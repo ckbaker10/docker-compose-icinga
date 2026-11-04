@@ -105,7 +105,16 @@ wait_for() {
 check() { wait_for "$@" || true; }
 
 healthy() {
-    [ "$("$ENGINE" inspect -f '{{.State.Health.Status}}' "$(container "$1" "$2")" 2>/dev/null)" = healthy ]
+    local id
+    id=$(container "$1" "$2")
+    [ -n "$id" ] || return 1
+    # Rootless Podman cannot schedule healthchecks without a user systemd
+    # session. Run the configured check explicitly for this test container.
+    if [ "${ENGINE##*/}" = podman ]; then
+        "$ENGINE" healthcheck run "$id" >/dev/null 2>&1
+    else
+        [ "$("$ENGINE" inspect -f '{{.State.Health.Status}}' "$id" 2>/dev/null)" = healthy ]
+    fi
 }
 
 db() {

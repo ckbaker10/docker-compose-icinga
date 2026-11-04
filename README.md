@@ -5,24 +5,46 @@
 - **`docker-compose.yml`** - Core Icinga stack (Icinga 2, Icinga Web 2, Icinga DB, Director)
 - **`docker-compose-influx-grafana.yml`** - Time-series Graphing Stack (InfluxDB 2.9, Chronograf, Grafana)
 - **Intelligent Backup/Restore** - Unified backup system supporting both stacks with legacy compatibility
-- **Flexible Networking** - Run stacks independently or connected via shared bridge network
+- **Shared Networking** - Run either stack alone or both with a shared bridge network
 
-Both stacks can run independently or together, with automatic volume detection and cross-compatible backup/restore functionality.
+Either stack can run alone. When both run, they use the same Compose project
+and the explicitly named `monitoring_bridge` network. The backup tools expect
+both stacks' volumes under that same project name.
 
 ### Images
 
-Pinned to minor versions; `docker compose pull` picks up patch releases only.
+Tested patch tags are pinned where available. The remaining minor tags can
+change on `docker compose pull`; review the release notes before pulling.
 
 | Service | Image |
 |---|---|
-| icinga2, init-icinga2 | `icinga/icinga2:2.16` |
-| icingadb | `icinga/icingadb:1.5` |
-| icingadb-redis | `redis:8.10` |
+| icinga2, init-icinga2 | `icinga/icinga2:2.16.6` |
+| icingadb | `icinga/icingadb:1.5.1` |
+| icingadb-redis | `redis:8.10.3` |
 | icingaweb, director | `icinga/icingaweb2:2.14` |
 | mysql | `mariadb:10.7` |
-| influxdb | `influxdb:2.9` |
-| chronograf | `chronograf:1.11` |
-| grafana | `grafana/grafana:13.2` |
+| influxdb | `influxdb:2.9.1` |
+| chronograf | `chronograf:1.11.6` |
+| grafana | `grafana/grafana:13.2.5` |
+
+Backup and restore use `docker.io/library/alpine:3.24.3` as their temporary
+volume helper image (`lib-volumes.sh`).
+
+**Open security issues (2026-11-04):** MariaDB 10.7 is end of life; the
+upgrade below still needs acceptance against a copy of the real database.
+The `icinga/icingaweb2:2.14` image checked on this date contains 2.14.0;
+the fixed 2.14.1 image tag was not available. Both `icingaweb` and `director`
+use this image. Icinga Web has a
+[high-severity unauthenticated file-read/DoS issue](https://github.com/Icinga/icingaweb2/security/advisories/GHSA-mph2-hvq4-8423)
+and a separate
+[high-severity group-membership issue for authenticated users](https://github.com/Icinga/icingaweb2/security/advisories/GHSA-jff6-vjrf-q9gj).
+Restrict access to trusted administrators. At every HTTP ingress, deny
+requests to `/svg/chart.php` and `/png/chart.php` (include the actual base
+path if served below a prefix); verify denial also applies to any direct
+backend access. This mitigates only the chart issue. The group-membership
+issue has no documented workaround. A fixed image must be verified and
+tested before these findings can be closed; patch pins elsewhere in the
+stack do not establish that the full stack is secure.
 
 ### Monitoring plugins
 
@@ -55,7 +77,7 @@ Both repositories install the plugins on the agents with Ansible.
 
 2. **Choose Your Deployment Strategy**
 
-   **Option A: Independent Stacks (Default)**
+   **Option A: One Stack**
    ```bash
    # Start Icinga stack only
    docker compose up -d
@@ -63,21 +85,17 @@ Both repositories install the plugins on the agents with Ansible.
    # OR start Graphing Stack only
    docker compose -f docker-compose-influx-grafana.yml up -d
    
-   # OR start both independently (no cross-communication)
-   docker compose up -d
-   docker compose -f docker-compose-influx-grafana.yml up -d
    ```
 
-   **Option B: Connected Stacks (Shared Network)**
+   **Option B: Both Stacks (Shared Network)**
    ```bash
-   # Create shared network and enable cross-stack communication
-   docker network create monitoring_bridge
-   echo "USE_EXTERNAL_NETWORK=true" >> .env
-   
-   # Start both stacks (order doesn't matter)
-   docker compose up -d
-   docker compose -f docker-compose-influx-grafana.yml up -d
+   docker compose -f docker-compose.yml -f docker-compose-influx-grafana.yml up -d
    ```
+
+   Grafana also binds `10.200.200.1:3075` and uses that address as its root
+   URL. The host must own this WireGuard address. For another host, change
+   that port mapping and `GF_SERVER_ROOT_URL` in
+   `docker-compose-influx-grafana.yml` before starting the graphing stack.
 
 3. **Verify Deployment**
    ```bash
@@ -88,56 +106,55 @@ Both repositories install the plugins on the agents with Ansible.
 
 ## Network Configuration
 
-The stacks support flexible networking modes through the `USE_EXTERNAL_NETWORK` environment variable:
+Both files explicitly name the cross-stack network `monitoring_bridge`.
+`USE_EXTERNAL_NETWORK` controls who manages that network; it does not isolate
+the stacks. Services on this network can communicate in either mode.
 
-### Independent Mode (Default)
+### Compose-Managed Network (Default)
 - **`USE_EXTERNAL_NETWORK=false`** or unset
-- Each stack creates its own isolated `monitoring_bridge` network
-- Stacks cannot communicate with each other
-- Ideal for: Single-stack deployments, testing, isolated environments
+- Compose creates and manages `monitoring_bridge`.
+- Use both `-f` arguments when managing both stacks together, so Compose sees
+  all services and network users.
+- The `icinga_internal` and `monitoring_internal` networks remain separate,
+  but services attached to `monitoring_bridge` can communicate across stacks.
 
-### Connected Mode 
+### Externally Managed Network
 - **`USE_EXTERNAL_NETWORK=true`**
-- Both stacks share a single external `monitoring_bridge` network
-- Services can communicate across stacks (e.g., Icinga → InfluxDB)
-- Ideal for: Integrated graphing pipelines, data forwarding
+- Create `monitoring_bridge` before starting the services.
+- Compose uses the existing network and does not remove it on `down`.
+- Keep the existing Compose project name when changing network management;
+  changing it also changes the volume names and can appear to lose data.
 
 ### Network Management Examples
 
-**Switch from Independent to Connected:**
+**Switch from Compose-managed to externally managed networking:**
 ```bash
-# Stop stacks
-docker compose down
-docker compose -f docker-compose-influx-grafana.yml down
+# Stop both stacks and remove their Compose-managed networks (keep volumes)
+docker compose -f docker-compose.yml -f docker-compose-influx-grafana.yml down
 
-# Enable shared networking
-echo "USE_EXTERNAL_NETWORK=true" >> .env
+# Set USE_EXTERNAL_NETWORK=true in .env (replace any existing assignment)
 docker network create monitoring_bridge
 
-# Restart in connected mode
-docker compose up -d
-docker compose -f docker-compose-influx-grafana.yml up -d
+# Restart both stacks
+docker compose -f docker-compose.yml -f docker-compose-influx-grafana.yml up -d
 ```
 
-**Switch from Connected to Independent:**
+**Switch from externally managed to Compose-managed networking:**
 ```bash
-# Stop stacks and remove shared network
-docker compose down
-docker compose -f docker-compose-influx-grafana.yml down
+# Stop both stacks and remove the external network only if it has no other users
+docker compose -f docker-compose.yml -f docker-compose-influx-grafana.yml down
 docker network rm monitoring_bridge
 
-# Disable shared networking
-sed -i '/USE_EXTERNAL_NETWORK=true/d' .env  # Linux
-# or edit .env manually to remove the line
+# Set USE_EXTERNAL_NETWORK=false in .env (replace any existing assignment)
 
-# Restart in independent mode
-docker compose up -d
-docker compose -f docker-compose-influx-grafana.yml up -d
+# Restart both stacks
+docker compose -f docker-compose.yml -f docker-compose-influx-grafana.yml up -d
 ```
 
 ## Service Access Points
 
-All ports are published on `127.0.0.1` only. To let remote agents connect
+Ports are published on `127.0.0.1`, with Grafana additionally published on
+the WireGuard address `10.200.200.1`. To let remote agents connect
 to the API, publish port 5665 on a reachable address (e.g. a VPN address)
 in `docker-compose.yml` or put a proxy/tunnel in front.
 
@@ -147,7 +164,8 @@ in `docker-compose.yml` or put a proxy/tunnel in front.
 
 ### Graphing Stack
 - **InfluxDB**: http://localhost:8086 (default: `admin` / `adminpassword`)
-- **Chronograf**: http://localhost:8888 (connects to InfluxDB automatically)
+- **Chronograf**: http://localhost:8888 (configured with the InfluxDB URL;
+  an HTTP response alone does not verify an authenticated data query)
 - **Grafana**: http://localhost:3075 (default: `admin` / `grafanapassword`)
 
 ## Environment Configuration
@@ -247,7 +265,7 @@ When no `.env` file is present, the following default credentials are used:
 ### Graphing Stack
 - **InfluxDB**: `admin` / `adminpassword` (token: `mytoken`)
 - **Grafana**: `admin` / `grafanapassword`
-- **Chronograf**: No authentication (connects to InfluxDB with above credentials)
+- **Chronograf**: No UI authentication configured
 
 **Security Note**: Change all default passwords in production by copying `.env.example` to `.env` and setting secure values.
 
@@ -261,6 +279,15 @@ docker compose exec mysql mariadb -u root -p -e "ALTER USER 'icingaweb'@'%' IDEN
 docker compose run --rm --no-deps icinga2 rm /data/etc/icinga2/conf.d/icingaweb-api-user.conf
 docker compose up -d --force-recreate init-icinga2 icinga2 icingaweb director
 ```
+
+For `ICINGAWEB_ADMIN_PASSWORD`, edit its existing `.env` assignment and run
+`docker compose up -d --force-recreate icingaweb`, then verify the new login.
+The [Icinga Web image](https://hub.docker.com/r/icinga/icingaweb2) provisions
+the account from `icingaweb.passwords.*` at startup.
+[`docker compose restart`](https://docs.docker.com/reference/cli/docker/compose/restart/)
+does not reload changed environment values. Grafana and InfluxDB initialization
+credentials also do not rotate existing accounts merely by editing `.env`;
+use those services' account/token management and update consumers together.
 
 ## Data Persistence & Backup
 
@@ -278,7 +305,9 @@ All service data persists in named Docker volumes with automatic project-based n
 - `{project}_chronograf-storage` - Chronograf dashboards and settings
 - `{project}_grafana-storage` - Grafana dashboards, datasources, and configuration
 
-*Note: `{project}` is automatically derived from the directory name (e.g., `icinga-monitoring-main`)*
+*Note: `{project}` is derived from the directory name (e.g.,
+`icinga-monitoring-main`) unless `COMPOSE_PROJECT_NAME` overrides it. Use the
+same project name for both stacks so the backup scripts find their volumes.*
 
 ### Backup System
 
@@ -288,7 +317,8 @@ The repository includes intelligent backup and restore scripts with the followin
 - **Selective Restore**: Only the stacks contained in the backup are stopped and restored
 - **Legacy Compatibility**: Older Icinga-only backups and volumes named `icinga-playground_*` or without prefix are recognised
 - **Project-aware**: Volume names follow the Compose project name (directory name or `COMPOSE_PROJECT_NAME`)
-- **Safe Operations**: Nothing is stopped or changed before the restore is confirmed; any error aborts with a non-zero exit code
+- **Restore Confirmation**: Nothing is stopped or changed before the restore
+  is confirmed; extraction failure leaves the affected services stopped
 
 Both scripts can be called from any directory; they work relative to their own location.
 
@@ -298,7 +328,13 @@ Both scripts can be called from any directory; they work relative to their own l
 ./backup.sh
 ```
 
-Running services are stopped for a consistent copy and exactly those services are started again afterwards, also when the backup fails. The archive is written to `backups/` together with a metadata file; an incomplete archive is removed.
+Running services are stopped for a consistent copy and the script attempts
+to start those services again afterwards, also when the backup fails. A
+restart failure prints a warning; check service status afterwards. The archive
+is written to `backups/` together with a metadata file; an incomplete archive
+is removed. These archives contain named volumes, not `.env`, bind-mounted
+configuration, or `validator-stats/` secrets; back those up separately with
+appropriate access restrictions.
 
 #### Restoring from Backup
 
@@ -355,12 +391,13 @@ docker compose down --volumes
 docker compose up -d
 
 # Full reset - Both stacks (destroys all data)
-docker compose down --volumes  
-docker compose -f docker-compose-influx-grafana.yml down --volumes
-docker compose up -d
-docker compose -f docker-compose-influx-grafana.yml up -d
+docker compose -f docker-compose.yml -f docker-compose-influx-grafana.yml down --volumes
+docker compose -f docker-compose.yml -f docker-compose-influx-grafana.yml up -d
 
 # Selective reset - Remove specific volumes
+docker compose -f docker-compose-influx-grafana.yml stop grafana
+docker compose -f docker-compose-influx-grafana.yml rm -f grafana
+# Replace the example project prefix with the actual Compose project name
 docker volume rm icinga-monitoring-main_grafana-storage
 docker compose -f docker-compose-influx-grafana.yml up -d
 ```
@@ -424,15 +461,17 @@ E2E_KEEP=1 tests/e2e/run.sh         # keep the stacks for debugging
 
 Requirements: `podman`, `podman-compose`, `git` and `curl`. A running
 installation is not touched; all containers, networks and volumes of the test
-are removed afterwards. Further options are listed in the script header. Run
+are removed afterwards. The test invokes Podman's configured healthchecks
+explicitly, so it also works without rootless systemd healthcheck timers.
+Further options are listed in the script header. Run
 it after image updates such as the MariaDB upgrade above.
 
 ### Environment Changes
 ```bash
 # Switch networking modes (see Network Configuration section)
-# Update passwords (requires container restart)
+# Update passwords (existing database/API accounts also require the steps above)
 vim .env
-docker compose down && docker compose up -d
+docker compose -f docker-compose.yml -f docker-compose-influx-grafana.yml up -d
 
 # Add new environment variables
 echo "NEW_SETTING=value" >> .env
@@ -467,12 +506,11 @@ docker network ls | grep monitoring_bridge
 docker network inspect monitoring_bridge
 
 # Reset networking (when USE_EXTERNAL_NETWORK=true)
-docker compose down
-docker compose -f docker-compose-influx-grafana.yml down  
+docker compose -f docker-compose.yml -f docker-compose-influx-grafana.yml down
+# Only remove a network that has no other users
 docker network rm monitoring_bridge
 docker network create monitoring_bridge
-docker compose up -d
-docker compose -f docker-compose-influx-grafana.yml up -d
+docker compose -f docker-compose.yml -f docker-compose-influx-grafana.yml up -d
 ```
 
 #### Database Connection Issues
@@ -503,17 +541,16 @@ docker system df
 ls -la backups/  # Check backup files exist
 tar -tzf backups/backup_file.tar.gz | head -20  # Check backup contents
 
-# Manual volume cleanup (dangerous - destroys data)
-docker compose down --volumes
-docker volume prune
+# Inspect a particular volume before choosing a project-specific reset
+docker volume inspect icinga-monitoring-main_mysql
 ```
 
 #### Permission and Access Issues
 ```bash
-# Reset Icinga Web admin password
-# Edit .env file, then restart
-echo "ICINGAWEB_ADMIN_PASSWORD=newpassword" >> .env
-docker compose restart icingaweb
+# Change ICINGAWEB_ADMIN_PASSWORD in .env, replacing its existing assignment.
+# Recreate to pass the new environment to the image's account provisioning.
+docker compose up -d --force-recreate icingaweb
+# Verify login with the new password and rejection of the old password.
 
 # Check default credentials (see Default Credentials section)
 # Verify service accessibility
@@ -530,9 +567,6 @@ docker stats --no-stream
 # Check available disk space
 df -h
 docker system df
-
-# Clean up unused resources
-docker system prune -a  # Removes unused containers, networks, images
 
 # Monitor container logs for errors
 docker compose logs --tail=50
